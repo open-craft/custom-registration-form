@@ -13,7 +13,7 @@ class ExtraInfoForm(ModelForm):
     def __init__(self, *args, **kwargs):
         super(ExtraInfoForm, self).__init__(*args, **kwargs)
         self.fields["allow_marketing_emails"].label = _(
-            u"I agree to get marketing emails from {platform_name}"
+            u"I hereby confirm receiving updates on new courses, content and new learning initiatives"
         ).format(
             platform_name=configuration_helpers.get_value(
                 "PLATFORM_NAME", settings.PLATFORM_NAME
