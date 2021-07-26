@@ -30,7 +30,11 @@ setup(
     name='custom-form-app',
     version='1.0',
     description='LMS - Custom Registration Extension Form',
-    packages=['custom_reg_form'],
+    packages=[
+        'custom_reg_form',
+        'custom_reg_form.migrations',
+        'custom_reg_form.locale',
+    ],
     install_requires=[
         'Django',
     ],

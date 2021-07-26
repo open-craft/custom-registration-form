@@ -11,7 +11,7 @@ class ExtraInfo(models.Model):
     The form that wraps this model is in the forms.py file.
     """
 
-    user = models.OneToOneField(USER_MODEL, null=True)
+    user = models.OneToOneField(USER_MODEL, null=True, on_delete=models.DO_NOTHING)
 
     allow_marketing_emails = models.BooleanField(
         default=False,
