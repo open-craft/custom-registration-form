@@ -199,6 +199,9 @@ class Command(BaseCommand):
 
         cursor.execute(query)
 
+		# write csv header
+        writer.writerow(options["fields"])
+
         while True:
             rows = (
                 # using the default arraysize as described in:
