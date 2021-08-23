@@ -51,7 +51,7 @@ LOGGER = logging.getLogger(__name__)
 
 def get_registration_ext_model():
     """Returns the REGISTRATION_EXTENSION_MODEL"""
-    # first attempt to infer from the Meta field in the form
+    # Attempt to infer the model from the Meta field in the form
     if hasattr(settings, "REGISTRATION_EXTENSION_FORM"):
         try:
             form_class_path = settings.REGISTRATION_EXTENSION_FORM
@@ -66,7 +66,7 @@ def get_registration_ext_model():
             # model class in another way
             pass
 
-    # check REGISTRATOIN_EXTENSION_MODEL setting
+    # otherwise, check the REGISTRATOIN_EXTENSION_MODEL setting
     if hasattr(settings, "REGISTRATION_EXTENSION_MODEL"):
         model_class_path = settings.REGISTRATION_EXTENSION_MODEL
         module_path = ".".join(model_class_path.split(".")[:-1])
