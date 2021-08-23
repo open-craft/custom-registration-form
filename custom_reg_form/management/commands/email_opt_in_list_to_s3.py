@@ -6,7 +6,6 @@ Usage:
         - the script will try to infer it from the registration form meta field
         - if not applicable the script will try to get it from the
           REGISTRATION_EXTENSION_MODEL setting
-        - if omited the script will try to get it from the REGISTRATION_EXTENSION_MODEL ENV VAR
     - specifying fields
         - fields can be specified in an adhoc manner using "--fields", in this case fields will
         be determined in this order:
@@ -20,11 +19,12 @@ Usage:
             - AWS_SECRET_ACCESS_KEY
             - AWS_PROFILE
             - AWS_SHARED_CREDENTIALS_FILE
-        - you can specify the aws profile using "--aws-profile"
+        - you can specify the aws profile using "--aws-profile", specify which profile to use from
+          the ~/.aws/credentials or ~/.aws/config file
         - you can specify which settings to use for aws access key/secret
         like so: "--aws-access-key-setting=CVS_EXPORTER_S3_KEY" and using "--aws-secret-key-setting"
     - other options:
-        - "--skip-when-null", skips the row when the value of one of the fields is null
+        - "--skip-row-if-field-null", skips the row when the value of one of the fields is null
 """
 
 import logging
@@ -32,12 +32,11 @@ import csv
 import io
 import tempfile
 import importlib
-import os
 
 import boto3
 
 from django.core.management.base import BaseCommand
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 
 from django.db import connections
 from django.conf import settings
@@ -62,42 +61,28 @@ def get_registration_ext_model():
             if issubclass(form_class, ModelForm):
                 model_class = form_class.Meta.model
                 return model_class
-        except Exception:   # pylint: disable=broad-except
+        except AttributeError:   # pylint: disable=broad-except
             # we ignore execptions so we can try to get the
             # model class in another way
             pass
 
     # check REGISTRATOIN_EXTENSION_MODEL setting
     if hasattr(settings, "REGISTRATION_EXTENSION_MODEL"):
-        try:
-            model_class_path = settings.REGISTRATION_EXTENSION_MODEL
-            module_path = ".".join(model_class_path.split(".")[:-1])
-            module = importlib.import_module(module_path)
-            model_class = getattr(module, model_class_path.split(".")[-1])
-            return model_class
-        except Exception:    # pylint: disable=broad-except
-            # ignore and try again
-            pass
-
-    # check REGISTRATION_EXTENSION_MODEL environment variable
-    if "REGISTRATION_EXTENSION_MODEL" in os.environ:
-        try:
-            model_class_path = os.environ.get("REGISTRATION_EXTENSION_MODEL")
-            module_path = ".".join(model_class_path.split(".")[:-1])
-            module = importlib.import_module(module_path)
-            model_class = getattr(module, model_class_path.split(".")[-1])
-            return model_class
-        except Exception:  # pylint: disable=broad-except
-            pass
+        model_class_path = settings.REGISTRATION_EXTENSION_MODEL
+        module_path = ".".join(model_class_path.split(".")[:-1])
+        module = importlib.import_module(module_path)
+        model_class = getattr(module, model_class_path.split(".")[-1])
+        return model_class
 
     raise Exception("Couldn't infer the model path to the registration extension model.")
 
 def infer_field_model(field):
     """Returns the model of which `field` is a member"""
 
-    # first check in the User model
-    if hasattr(User, field):
-        return User
+    # check if in the User model
+    user_model = get_user_model()
+    if hasattr(user_model, field):
+        return user_model
     # check if in the UserProfile model
     if hasattr(UserProfile, field):
         return UserProfile
@@ -108,20 +93,22 @@ def infer_field_model(field):
 
     raise Exception("Couldn't infer field: `{}` model.".format(field))
 
+# pylint: disable=protected-access
 def construct_query(fields):
     """Returns a string `query` to be passed to `cursor.execute`"""
-    reg_ext_table = get_registration_ext_model()._meta.db_table # pylint: disable=protected-access
+    reg_ext_table = get_registration_ext_model()._meta.db_table
+    user_table = get_user_model()._meta.db_table
     field_names = ", ".join(
-        [".".join([infer_field_model(field)._meta.db_table, field]) for field in fields]    # pylint: disable=protected-access
+        [".".join([infer_field_model(field)._meta.db_table, field]) for field in fields]
     )
     query = """
         SELECT 
             {field_names}
-        FROM auth_user 
+        FROM {user_table} 
             LEFT JOIN {reg_ext_table} ON {reg_ext_table}.user_id = auth_user.id
             JOIN auth_userprofile ON auth_userprofile.user_id = auth_user.id;
         """.format(
-            field_names=field_names, reg_ext_table=reg_ext_table
+            field_names=field_names, user_table=user_table, reg_ext_table=reg_ext_table
         )
 
     return query
@@ -144,7 +131,7 @@ class Command(BaseCommand):
             ),
         )
         parser.add_argument(
-            "--skip-when-null",
+            "-s", "--skip-row-if-field-null",
             dest="skip_when_null",
             action="store_true",
             help=(
@@ -153,7 +140,8 @@ class Command(BaseCommand):
             )
         )
         parser.add_argument(
-            "--no-skip-when-null", dest="skip_when_null", action="store_false"
+            "-ns",
+            "--no-skip-row-if-field-null", dest="skip_when_null", action="store_false"
         )
         parser.set_defaults(skip_when_null=True)
         parser.add_argument(
@@ -211,15 +199,15 @@ class Command(BaseCommand):
 
         cursor.execute(query)
 
-        while 1:
-            array = (
+        while True:
+            rows = (
                 # using the default arraysize as described in:
                 # https://www.python.org/dev/peps/pep-0249/#fetchmany
                 cursor.fetchmany()
             )
-            if not array:
+            if not rows:
                 break
-            for row in array:
+            for row in rows:
                 if options["skip_when_null"] and None in row:
                     continue
 
@@ -253,5 +241,3 @@ class Command(BaseCommand):
 
         text_fd.close()
         binary_fd.close()
-
-        return
