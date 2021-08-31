@@ -33,6 +33,7 @@ setup(
     packages=[
         'custom_reg_form',
         'custom_reg_form.migrations',
+        'custom_reg_form.management',
         'custom_reg_form.locale',
     ],
     install_requires=[
