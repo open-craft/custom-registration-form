@@ -42,7 +42,7 @@ def get_registration_ext_model():
         try:
             module_path = ".".join(model_class_path.split(".")[:-1])
             module = importlib.import_module(module_path)
-            model_class = getattr(module, model_class_path.split(".")[-1])
+            return getattr(module, model_class_path.split(".")[-1])
         except AttributeError as exc:
             LOGGER.warning(str(exc))
 
